@@ -7,9 +7,15 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
+# 从配置文件或环境变量读取API密钥
+try:
+    from config import API_KEY
+except ImportError:
+    API_KEY = os.getenv("SILICON_FLOW_API_KEY", "your-api-key-here")
+
 class ProjectBuilder:
-    def __init__(self, api_key: str, output_dir: str = "generated_project"):
-        self.api_key = api_key
+    def __init__(self, api_key: str = None, output_dir: str = "generated_project"):
+        self.api_key = api_key or API_KEY
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         
@@ -18,7 +24,7 @@ class ProjectBuilder:
             model="Qwen/Qwen2.5-Coder-7B-Instruct",
             temperature=0.7,
             base_url="https://api.siliconflow.cn/v1",
-            api_key=api_key,
+            api_key=self.api_key,
             max_tokens=3000
         )
         
@@ -234,10 +240,27 @@ class ProjectBuilder:
                 "description": file_info['description'],
                 "functions": ', '.join(file_info['functions']) if file_info['functions'] else '无特定函数'
             })
+            
+            # 清理Markdown代码块标记
+            result = self._clean_generated_content(result)
             return result
         except Exception as e:
             print(f"生成 {file_path} 时出错: {e}")
             return self._get_fallback_content(file_path, file_type)
+
+    def _clean_generated_content(self, content: str) -> str:
+        """清理生成内容中的Markdown标记"""
+        # 移除开头的```python标记
+        content = re.sub(r'^```python\s*\n', '', content)
+        content = re.sub(r'^```\s*\n', '', content)
+        
+        # 移除结尾的```标记
+        content = re.sub(r'\n```\s*$', '', content)
+        
+        # 移除首尾空白行
+        content = content.strip()
+        
+        return content
 
     def _get_fallback_content(self, file_path: str, file_type: str) -> str:
         """生成失败时的后备内容"""
@@ -294,7 +317,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
                 for file_path, file_info in files_by_type[file_type]:
                     self._generate_and_save_file(file_path, file_info)
         
-        print(f"\n项目构建完成！文件保存在: {self.output_dir}")
+        print(f"\n项目构建完成！文件保存in: {self.output_dir}")
 
     def _generate_and_save_file(self, file_path: str, file_info: Dict):
         """生成并保存单个文件"""
@@ -315,7 +338,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
         except Exception as e:
             print(f"    保存失败: {e}")
 
-    # 添加缺失的模板
+    # 模板定义（在所有模板中添加清理指令）
     def _get_database_template(self) -> str:
         return """
 你是一个数据库连接专家。请根据以下信息生成完整的数据库连接文件：
@@ -332,7 +355,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 5. 添加错误处理
 6. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_docker_template(self) -> str:
@@ -344,13 +368,13 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 要求：
 1. 使用Python 3.11基础镜像
-2. 设置工作目录
+2. 设置工作目录  
 3. 复制并安装依赖
 4. 配置应用启动命令
 5. 暴露合适的端口
 6. 优化镜像大小
 
-请输出完整的Dockerfile内容：
+重要：请直接输出Dockerfile内容，不要使用任何代码块标记！
 """
 
     def _get_requirements_template(self) -> str:
@@ -368,10 +392,9 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 5. 指定具体版本号
 6. 按功能分组注释
 
-请输出完整的requirements.txt内容：
+重要：请直接输出requirements.txt内容，不要使用任何代码块标记！
 """
 
-    # 其他模板保持不变...
     def _get_router_template(self) -> str:
         return """
 你是一个FastAPI路由专家。请根据以下信息生成完整的API路由文件：
@@ -389,7 +412,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 包含完整的文档字符串
 7. 遵循RESTful API设计原则
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_model_template(self) -> str:
@@ -409,7 +433,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 添加__repr__方法
 7. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_schema_template(self) -> str:
@@ -429,7 +454,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 添加示例数据
 7. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_service_template(self) -> str:
@@ -449,7 +475,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 实现事务管理
 7. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_config_template(self) -> str:
@@ -469,7 +496,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 添加配置文档
 7. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_test_template(self) -> str:
@@ -489,7 +517,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 添加断言验证
 7. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_migration_template(self) -> str:
@@ -509,7 +538,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 添加错误处理
 7. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_util_template(self) -> str:
@@ -529,7 +559,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 6. 添加使用示例
 7. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
     def _get_main_template(self) -> str:
@@ -550,19 +581,26 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 7. 包含启动和关闭事件
 8. 包含完整的文档字符串
 
-请输出完整的Python文件代码：
+重要：请直接输出Python代码，不要使用```python```标记，不要使用任何Markdown格式！
+只输出纯Python代码内容。
 """
 
 
 # 使用示例
 if __name__ == "__main__":
+    # 检查API密钥
+    if API_KEY == "your-api-key-here":
+        print("错误：请设置正确的API密钥")
+        print("方法1：创建config.py文件并设置API_KEY变量")
+        print("方法2：设置环境变量SILICON_FLOW_API_KEY")
+        exit(1)
+    
     # 配置
-    API_KEY = "sk-qdsixyljzeyoessydhkwnjqnijnrylztfhccdnyoweqshyku"
     PROJECT_STRUCTURE_FILE = "project_structure.md"
     OUTPUT_DIR = "fastapi_blog_system_fixed"
     
     # 创建项目构建器
-    builder = ProjectBuilder(API_KEY, OUTPUT_DIR)
+    builder = ProjectBuilder(output_dir=OUTPUT_DIR)
     
     # 构建项目
     builder.build_project(PROJECT_STRUCTURE_FILE)
