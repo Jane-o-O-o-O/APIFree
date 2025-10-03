@@ -7,7 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 try:
     from config import API_KEY
 except ImportError:
-    API_KEY = os.getenv("SILICON_FLOW_API_KEY", "sk-qdsixyljzeyoessydhkwnjqnijnrylztfhccdnyoweqshyku")
+    API_KEY = os.getenv("SILICON_FLOW_API_KEY", "your-api-key-here")
 
 # 设置硅基流动 API 配置
 os.environ["OPENAI_API_KEY"] = API_KEY
@@ -18,8 +18,22 @@ template = """
 
 要求输出：
 - 第一部分用 Markdown 格式描述完整的项目目录树
-- 第二部分中显示每个文件中的函数名，但不要写函数实现
+- 第二部分中显示每个文件中的函数名加上后面的注释，不要写函数实现
 - 结构中要有合理的模块划分
+
+举例：
+blog_system/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── posts.py
+│   │   ├── users.py
+
+## app/main.py
+## app/routers/posts.py
+## app/routers/users.py
 
 重要：请直接输出Markdown内容，不要在开头和结尾添加```markdown标记！
 """
@@ -28,7 +42,7 @@ prompt = PromptTemplate(template=template, input_variables=["requirement"])
 
 # 使用硅基流动的 Qwen 模型
 llm = ChatOpenAI(
-    model="Qwen/Qwen2.5-Coder-7B-Instruct",
+    model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
     temperature=0.7,
     base_url="https://api.siliconflow.cn/v1",
     api_key=API_KEY,
@@ -68,8 +82,6 @@ try:
         f.write(project_structure)
     
     print("项目结构已生成到 project_structure.md")
-    print("前100个字符预览:")
-    print(project_structure[:100])
     
 except Exception as e:
     print(f"错误: {e}")
